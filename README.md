@@ -9,5 +9,7 @@ Tạo và triển khai một chatbot Facebook cơ bản sử dụng Flask.
 ## Trạng thái hiện tại
 - [x] Tạo `requirements.txt` với các thư viện: Flask, requests, gunicorn.
 - [x] Tạo `app.py` chứa logic xử lý Webhook và nhắn tin của Facebook.
-- [ ] Đẩy code lên GitHub.
-- [ ] Triển khai lên Render.com.
+- [x] Khởi tạo Git repository và commit tại local.
+- [x] Đẩy code lên GitHub.
+- [x] Triển khai lên Render.com. (URL: https://fb-chatbot-92d4.onrender.com)
+- [ ] Cấu hình Facebook Developer (Webhook & Page Access Token).
