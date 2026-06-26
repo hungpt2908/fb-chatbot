@@ -17,6 +17,11 @@ scheduler.start()
 # Cấu trúc: { sender_id: { "job_id": "...", "followup_count": 0, "done": False } }
 user_tracking = {}
 
+# Bộ nhớ hội thoại theo từng khách (lưu tối đa 20 tin nhắn gần nhất)
+# Cấu trúc: { sender_id: [ {"role": "user", "parts": ["..."]}, {"role": "model", "parts": ["..."]} ] }
+conversation_history = {}
+MAX_HISTORY = 20
+
 # Các tin nhắn bám đuổi - mỗi lần khác nhau để tự nhiên
 FOLLOWUP_MESSAGES = [
     "Mình ơi, mình còn đang cần tư vấn gì thêm không nè? 😊",
@@ -144,18 +149,35 @@ def handle_gemini_response(recipient_id, text):
         send_text_message(recipient_id, "Dạ hệ thống bên em đang bảo trì, mình liên hệ hotline 0989 567 709 giúp em nha!")
         return
 
+    # Lấy lịch sử hội thoại của khách (hoặc tạo mới nếu chưa có)
+    if recipient_id not in conversation_history:
+        conversation_history[recipient_id] = []
+    
+    history = conversation_history[recipient_id]
+
+    # Thêm tin nhắn mới của khách vào lịch sử
+    history.append(types.Content(role="user", parts=[types.Part.from_text(text=text)]))
+
     try:
         selected_key = random.choice(GEMINI_API_KEYS)
         client = genai.Client(api_key=selected_key)
         
+        # Gửi TOÀN BỘ lịch sử hội thoại để AI nhớ ngữ cảnh
         response = client.models.generate_content(
             model='gemini-2.5-flash',
-            contents=text,
+            contents=history,
             config=types.GenerateContentConfig(
                 system_instruction=get_system_instruction(),
             )
         )
         reply_text = response.text
+
+        # Lưu câu trả lời của AI vào lịch sử
+        history.append(types.Content(role="model", parts=[types.Part.from_text(text=reply_text)]))
+
+        # Giới hạn lịch sử để không bị tràn bộ nhớ
+        if len(history) > MAX_HISTORY:
+            conversation_history[recipient_id] = history[-MAX_HISTORY:]
 
         # Nếu AI xác nhận đã chốt đơn → dừng bám đuổi
         if any(kw in reply_text.lower() for kw in ['em ghi nhận rồi', 'giữ chỗ', 'xác nhận lại', 'đã ghi nhận']):
