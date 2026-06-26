@@ -185,8 +185,8 @@ def handle_gemini_response(recipient_id, text):
 
         send_text_message(recipient_id, reply_text)
 
-        # Tự động gửi ảnh QR khi bot nhắc đến chuyển khoản/cọc
-        coc_keywords = ['9596888899', 'techcombank', 'chuyển khoản', 'cọc trước', 'cọc nhẹ', 'ck qua']
+        # Tự động gửi ảnh QR khi bot nhắc đến gửi QR/cọc
+        coc_keywords = ['gửi qr', '9596888899', 'techcombank', 'cọc trước', 'cọc nhẹ', 'ck qua']
         if any(kw in reply_text.lower() for kw in coc_keywords):
             qr_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://fb-chatbot-92d4.onrender.com') + '/static/qr_bank.jpg'
             send_image_message(recipient_id, qr_url)
