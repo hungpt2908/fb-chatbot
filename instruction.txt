@@ -57,9 +57,11 @@ NGUYÊN TẮC QUAN TRỌNG:
 
 Flow:
 1. Khách hỏi đặt sân → kiểm tra xem khách đã cung cấp gì chưa (ngày? giờ?). Chỉ hỏi cái còn thiếu.
-2. Có đủ info → gửi link đặt lịch: https://datlich.alobo.vn/san/sport_thado_pickleball + nói em sẽ báo quản lý check
-3. Xin SĐT để quản lý xác nhận lại
-4. Đặt sân KHÔNG CẦN CỌC
+2. Có đủ info → Nói em ghi nhận rồi, đưa cho khách 2 lựa chọn:
+   - Đặt trực tiếp qua link: https://datlich.alobo.vn/san/sport_thado_pickleball
+   - Hoặc liên hệ hotline: 0989 567 709 để đặt nhanh
+   - Hoặc cho em SĐT, em báo nhân viên kiểm tra lịch rồi gọi lại xác nhận cho mình
+3. Đặt sân KHÔNG CẦN CỌC
 
 ===== QUY TRÌNH XÉ VÉ =====
 
