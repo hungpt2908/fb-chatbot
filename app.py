@@ -176,52 +176,65 @@ def handle_gemini_response(recipient_id, text):
     # Thêm tin nhắn mới của khách vào lịch sử
     history.append(types.Content(role="user", parts=[types.Part.from_text(text=text)]))
 
-    try:
-        selected_key = random.choice(GEMINI_API_KEYS)
-        client = genai.Client(api_key=selected_key)
-        
-        # Gửi TOÀN BỘ lịch sử hội thoại để AI nhớ ngữ cảnh
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=history,
-            config=types.GenerateContentConfig(
-                system_instruction=get_system_instruction(),
-                temperature=1.2,
+    # Thử gọi API với nhiều key (retry tối đa 3 lần)
+    import re
+    keys_to_try = random.sample(GEMINI_API_KEYS, min(3, len(GEMINI_API_KEYS)))
+    last_error = None
+
+    for i, selected_key in enumerate(keys_to_try):
+        try:
+            client = genai.Client(api_key=selected_key)
+            
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=history,
+                config=types.GenerateContentConfig(
+                    system_instruction=get_system_instruction(),
+                    temperature=1.2,
+                )
             )
-        )
-        reply_text = response.text
+            reply_text = response.text
 
-        # Xử lý tag gửi ảnh từ AI: [IMG:BANGGIA], [IMG:QR]
-        import re
-        image_tags = re.findall(r'\[IMG:(\w+)\]', reply_text)
-        # Xóa tag khỏi tin nhắn trước khi gửi cho khách
-        clean_text = re.sub(r'\s*\[IMG:\w+\]\s*', '', reply_text).strip()
+            # Xử lý tag gửi ảnh từ AI: [IMG:BANGGIA], [IMG:QR]
+            image_tags = re.findall(r'\[IMG:(\w+)\]', reply_text)
+            clean_text = re.sub(r'\s*\[IMG:\w+\]\s*', '', reply_text).strip()
 
-        # Lưu câu trả lời của AI vào lịch sử
-        history.append(types.Content(role="model", parts=[types.Part.from_text(text=clean_text)]))
+            # Lưu câu trả lời của AI vào lịch sử
+            history.append(types.Content(role="model", parts=[types.Part.from_text(text=clean_text)]))
 
-        # Giới hạn lịch sử để không bị tràn bộ nhớ
-        if len(history) > MAX_HISTORY:
-            conversation_history[recipient_id] = history[-MAX_HISTORY:]
+            # Giới hạn lịch sử để không bị tràn bộ nhớ
+            if len(history) > MAX_HISTORY:
+                conversation_history[recipient_id] = history[-MAX_HISTORY:]
 
-        # Nếu AI xác nhận đã chốt đơn → dừng bám đuổi
-        if any(kw in clean_text.lower() for kw in ['em ghi nhận rồi', 'giữ chỗ', 'xác nhận lại', 'đã ghi nhận']):
-            mark_done(recipient_id)
+            # Nếu AI xác nhận đã chốt đơn → dừng bám đuổi
+            if any(kw in clean_text.lower() for kw in ['em ghi nhận rồi', 'giữ chỗ', 'xác nhận lại', 'đã ghi nhận']):
+                mark_done(recipient_id)
 
-        # Gửi text cho khách
-        send_text_message(recipient_id, clean_text)
+            # Gửi text cho khách
+            send_text_message(recipient_id, clean_text)
 
-        # Gửi ảnh theo tag mà AI đã ra lệnh
-        tag_to_image = {'BANGGIA': 'banggia', 'QR': 'qr'}
-        for tag in image_tags:
-            image_key = tag_to_image.get(tag.upper())
-            if image_key:
-                print(f"🖼️ AI ra lệnh gửi ảnh: {tag}")
-                send_image_by_id(recipient_id, image_key)
+            # Gửi ảnh theo tag mà AI đã ra lệnh
+            tag_to_image = {'BANGGIA': 'banggia', 'QR': 'qr'}
+            for tag in image_tags:
+                image_key = tag_to_image.get(tag.upper())
+                if image_key:
+                    print(f"🖼️ AI ra lệnh gửi ảnh: {tag}")
+                    send_image_by_id(recipient_id, image_key)
 
-    except Exception as e:
-        print(f"Lỗi khi gọi Gemini API với key {selected_key[:10]}...:", e)
-        send_text_message(recipient_id, "Sorry mình, em bị lỗi mạng chút xíu 😅 Mình nhắn lại giúp em nha!")
+            # Thành công → thoát vòng lặp
+            return
+
+        except Exception as e:
+            last_error = e
+            print(f"⚠️ Lần {i+1}: Lỗi key {selected_key[:10]}...: {e}")
+            continue
+
+    # Tất cả key đều lỗi → xóa tin nhắn cuối khỏi history (để khách nhắn lại không bị lỗi)
+    if history and history[-1].role == "user":
+        history.pop()
+    
+    print(f"❌ Tất cả {len(keys_to_try)} key đều lỗi. Lỗi cuối: {last_error}")
+    send_text_message(recipient_id, "Dạ em đang xử lý nhiều khách quá 😅 Mình chờ em tí hoặc gọi hotline 0989 567 709 để được hỗ trợ nhanh hơn nha!")
 
 def handle_postback(recipient_id, payload):
     responses = {
