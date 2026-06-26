@@ -1,7 +1,8 @@
 from flask import Flask, request
 import requests
 import os
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import random
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
@@ -76,14 +77,11 @@ def send_followup_message(recipient_id):
 
 def schedule_followup(sender_id):
     """Cài đặt đồng hồ đếm ngược 30 phút"""
-    # Hủy lịch trình cũ nếu khách vừa nhắn tin lại
     if sender_id in user_jobs:
         try:
             scheduler.remove_job(user_jobs[sender_id])
         except Exception:
             pass
-    
-    # Lên lịch trình mới sau 30 phút
     run_date = datetime.now() + timedelta(minutes=30)
     job = scheduler.add_job(send_followup_message, 'date', run_date=run_date, args=[sender_id])
     user_jobs[sender_id] = job.id
@@ -108,16 +106,13 @@ def webhook():
             for entry in data['entry']:
                 for messaging_event in entry['messaging']:
                     sender_id = messaging_event['sender']['id']
-
-                    # Đặt lại đồng hồ 30 phút bất cứ khi nào khách tương tác
                     schedule_followup(sender_id)
 
-                    # 1. Xử lý tin nhắn văn bản khách gõ
                     if messaging_event.get('message') and not messaging_event['message'].get('is_echo'):
                         text = messaging_event['message'].get('text', '')
-                        handle_gemini_response(sender_id, text)
+                        if text:
+                            handle_gemini_response(sender_id, text)
 
-                    # 2. Xử lý khi khách bấm nút (Postback) - nếu có
                     if messaging_event.get('postback'):
                         payload = messaging_event['postback']['payload']
                         handle_postback(sender_id, payload)
@@ -130,10 +125,15 @@ def handle_gemini_response(recipient_id, text):
 
     try:
         selected_key = random.choice(GEMINI_API_KEYS)
-        genai.configure(api_key=selected_key)
-        model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=SYSTEM_INSTRUCTION)
-
-        response = model.generate_content(text)
+        client = genai.Client(api_key=selected_key)
+        
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=text,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_INSTRUCTION,
+            )
+        )
         reply_text = response.text
         send_text_message(recipient_id, reply_text)
     except Exception as e:
