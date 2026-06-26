@@ -168,6 +168,7 @@ def handle_gemini_response(recipient_id, text):
             contents=history,
             config=types.GenerateContentConfig(
                 system_instruction=get_system_instruction(),
+                temperature=1.2,
             )
         )
         reply_text = response.text
