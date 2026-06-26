@@ -207,8 +207,12 @@ def handle_gemini_response(recipient_id, text):
         # Tự động gửi ảnh QR khi bot nhắc đến gửi QR/cọc
         coc_keywords = ['gửi qr', '9596888899', 'techcombank', 'cọc trước', 'cọc nhẹ', 'ck qua']
         if any(kw in reply_text.lower() for kw in coc_keywords):
-            qr_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://fb-chatbot-92d4.onrender.com') + '/static/qr_bank.jpg'
-            send_image_message(recipient_id, qr_url)
+            send_image_by_id(recipient_id, 'qr')
+
+        # Tự động gửi ảnh bảng giá khi bot nhắc đến giá
+        gia_keywords = ['50k/h', '60k/h', '110k/h', '135k/h', '90k/h', '50k/ca', 'bảng giá', 'giá sân', 'giờ vàng']
+        if any(kw in reply_text.lower() for kw in gia_keywords):
+            send_image_by_id(recipient_id, 'banggia')
 
     except Exception as e:
         print(f"Lỗi khi gọi Gemini API với key {selected_key[:10]}...:", e)
@@ -228,87 +232,72 @@ def send_text_message(recipient_id, text):
     data = {"recipient": {"id": recipient_id}, "message": {"text": text}}
     requests.post("https://graph.facebook.com/v18.0/me/messages", params=params, json=data)
 
-# Lưu attachment_id của ảnh QR sau khi upload lên Facebook
-qr_attachment_id = None
+# Lưu attachment_id của các ảnh sau khi upload lên Facebook
+image_attachments = {}
 
-def upload_qr_to_facebook():
-    """Upload ảnh QR lên Facebook 1 lần, lưu attachment_id để gửi nhanh"""
-    global qr_attachment_id
+def upload_image_to_facebook(image_key, file_path):
+    """Upload 1 ảnh lên Facebook, lưu attachment_id"""
     if not PAGE_ACCESS_TOKEN:
         return
     try:
         url = "https://graph.facebook.com/v18.0/me/message_attachments"
         params = {'access_token': PAGE_ACCESS_TOKEN}
+        
+        # Dùng URL của Render để upload
+        base_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://fb-chatbot-92d4.onrender.com')
+        image_url = base_url + '/' + file_path
+        
         data = {
-            "message": {
-                "attachment": {
-                    "type": "image",
-                    "payload": {"is_reusable": True}
-                }
-            }
+            "message": '{"attachment":{"type":"image","payload":{"url":"' + image_url + '","is_reusable":true}}}'
         }
-        with open('static/qr_bank.jpg', 'rb') as f:
-            files = {'filedata': ('qr_bank.jpg', f, 'image/jpeg')}
-            response = requests.post(url, params=params, data={"message": str(data).replace("'", '"')}, files=files)
-            # Thử cách khác nếu cách trên không work
-            if response.status_code != 200:
-                # Fallback: dùng URL
-                qr_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://fb-chatbot-92d4.onrender.com') + '/static/qr_bank.jpg'
-                data2 = {
-                    "message": '{"attachment":{"type":"image","payload":{"url":"' + qr_url + '","is_reusable":true}}}'
-                }
-                response = requests.post(url, params=params, data=data2)
-            
-            result = response.json()
-            if 'attachment_id' in result:
-                qr_attachment_id = result['attachment_id']
-                print(f"✅ Upload QR thành công! attachment_id: {qr_attachment_id}")
-            else:
-                print(f"⚠️ Upload QR response: {result}")
+        response = requests.post(url, params=params, data=data)
+        result = response.json()
+        
+        if 'attachment_id' in result:
+            image_attachments[image_key] = result['attachment_id']
+            print(f"✅ Upload {image_key} thành công! attachment_id: {result['attachment_id']}")
+        else:
+            print(f"⚠️ Upload {image_key} response: {result}")
     except Exception as e:
-        print(f"❌ Lỗi upload QR: {e}")
+        print(f"❌ Lỗi upload {image_key}: {e}")
 
-def send_image_message(recipient_id, image_url=None):
-    """Gửi ảnh QR qua Messenger - ưu tiên dùng attachment_id cho nhanh"""
-    global qr_attachment_id
+def send_image_by_id(recipient_id, image_key):
+    """Gửi ảnh qua Messenger bằng attachment_id (nhanh) hoặc URL (fallback)"""
     params = {'access_token': PAGE_ACCESS_TOKEN}
     
-    if qr_attachment_id:
-        # Gửi bằng attachment_id (CỰC NHANH)
+    if image_key in image_attachments:
         data = {
             "recipient": {"id": recipient_id},
             "message": {
                 "attachment": {
                     "type": "image",
-                    "payload": {
-                        "attachment_id": qr_attachment_id
-                    }
+                    "payload": {"attachment_id": image_attachments[image_key]}
                 }
             }
         }
     else:
         # Fallback: gửi bằng URL
-        if not image_url:
-            image_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://fb-chatbot-92d4.onrender.com') + '/static/qr_bank.jpg'
+        base_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://fb-chatbot-92d4.onrender.com')
+        urls = {
+            'qr': base_url + '/static/qr_bank.jpg',
+            'banggia': base_url + '/static/bang_gia.png'
+        }
         data = {
             "recipient": {"id": recipient_id},
             "message": {
                 "attachment": {
                     "type": "image",
-                    "payload": {
-                        "url": image_url,
-                        "is_reusable": True
-                    }
+                    "payload": {"url": urls.get(image_key, ''), "is_reusable": True}
                 }
             }
         }
     
     resp = requests.post("https://graph.facebook.com/v18.0/me/messages", params=params, json=data)
-    print(f"Gửi QR: status={resp.status_code}, response={resp.text[:200]}")
+    print(f"Gửi {image_key}: status={resp.status_code}")
 
-# Upload QR khi server khởi động
-upload_qr_to_facebook()
+# Upload tất cả ảnh lên Facebook khi server khởi động
+upload_image_to_facebook('qr', 'static/qr_bank.jpg')
+upload_image_to_facebook('banggia', 'static/bang_gia.png')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-
