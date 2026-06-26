@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, render_template
 import requests
 import os
 from google import genai
@@ -8,6 +8,16 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
+
+# Trang chính sách quyền riêng tư (yêu cầu bắt buộc của Facebook)
+@app.route('/privacy')
+def privacy():
+    return render_template('privacy.html')
+
+# Trang xóa dữ liệu (yêu cầu bắt buộc của Facebook)
+@app.route('/deletion', methods=['GET', 'POST'])
+def deletion():
+    return render_template('privacy.html')
 
 # Khởi tạo bộ đếm thời gian chạy ngầm
 scheduler = BackgroundScheduler()
