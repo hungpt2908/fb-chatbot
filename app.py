@@ -191,33 +191,33 @@ def handle_gemini_response(recipient_id, text):
         )
         reply_text = response.text
 
+        # Xử lý tag gửi ảnh từ AI: [IMG:BANGGIA], [IMG:QR]
+        import re
+        image_tags = re.findall(r'\[IMG:(\w+)\]', reply_text)
+        # Xóa tag khỏi tin nhắn trước khi gửi cho khách
+        clean_text = re.sub(r'\s*\[IMG:\w+\]\s*', '', reply_text).strip()
+
         # Lưu câu trả lời của AI vào lịch sử
-        history.append(types.Content(role="model", parts=[types.Part.from_text(text=reply_text)]))
+        history.append(types.Content(role="model", parts=[types.Part.from_text(text=clean_text)]))
 
         # Giới hạn lịch sử để không bị tràn bộ nhớ
         if len(history) > MAX_HISTORY:
             conversation_history[recipient_id] = history[-MAX_HISTORY:]
 
         # Nếu AI xác nhận đã chốt đơn → dừng bám đuổi
-        if any(kw in reply_text.lower() for kw in ['em ghi nhận rồi', 'giữ chỗ', 'xác nhận lại', 'đã ghi nhận']):
+        if any(kw in clean_text.lower() for kw in ['em ghi nhận rồi', 'giữ chỗ', 'xác nhận lại', 'đã ghi nhận']):
             mark_done(recipient_id)
 
-        send_text_message(recipient_id, reply_text)
+        # Gửi text cho khách
+        send_text_message(recipient_id, clean_text)
 
-        # Tự động gửi ảnh QR khi bot nhắc đến gửi QR/cọc
-        coc_keywords = ['gửi qr', '9596888899', 'techcombank', 'cọc trước', 'cọc nhẹ', 'ck qua']
-        if any(kw in reply_text.lower() for kw in coc_keywords):
-            send_image_by_id(recipient_id, 'qr')
-
-        # Tự động gửi ảnh bảng giá khi bot nhắc đến giá
-        reply_lower = reply_text.lower()
-        gia_keywords = ['50k/h', '60k/h', '110k/h', '135k/h', '90k/h', '105k/h',
-                        '50k/ca', 'bảng giá', 'giá sân', 'giờ vàng', 'khuyến mại',
-                        'ngày thường', 'cuối tuần', '06h-17h', '17h-20h', '20h-23h',
-                        't2-t6', 't7-cn']
-        if any(kw in reply_lower for kw in gia_keywords):
-            print(f"📊 Phát hiện keyword giá, gửi ảnh bảng giá...")
-            send_image_by_id(recipient_id, 'banggia')
+        # Gửi ảnh theo tag mà AI đã ra lệnh
+        tag_to_image = {'BANGGIA': 'banggia', 'QR': 'qr'}
+        for tag in image_tags:
+            image_key = tag_to_image.get(tag.upper())
+            if image_key:
+                print(f"🖼️ AI ra lệnh gửi ảnh: {tag}")
+                send_image_by_id(recipient_id, image_key)
 
     except Exception as e:
         print(f"Lỗi khi gọi Gemini API với key {selected_key[:10]}...:", e)
