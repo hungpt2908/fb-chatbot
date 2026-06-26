@@ -210,8 +210,13 @@ def handle_gemini_response(recipient_id, text):
             send_image_by_id(recipient_id, 'qr')
 
         # Tự động gửi ảnh bảng giá khi bot nhắc đến giá
-        gia_keywords = ['50k/h', '60k/h', '110k/h', '135k/h', '90k/h', '50k/ca', 'bảng giá', 'giá sân', 'giờ vàng']
-        if any(kw in reply_text.lower() for kw in gia_keywords):
+        reply_lower = reply_text.lower()
+        gia_keywords = ['50k/h', '60k/h', '110k/h', '135k/h', '90k/h', '105k/h',
+                        '50k/ca', 'bảng giá', 'giá sân', 'giờ vàng', 'khuyến mại',
+                        'ngày thường', 'cuối tuần', '06h-17h', '17h-20h', '20h-23h',
+                        't2-t6', 't7-cn']
+        if any(kw in reply_lower for kw in gia_keywords):
+            print(f"📊 Phát hiện keyword giá, gửi ảnh bảng giá...")
             send_image_by_id(recipient_id, 'banggia')
 
     except Exception as e:
