@@ -3,8 +3,16 @@ import requests
 import os
 import google.generativeai as genai
 import random
+from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
+
+# Khởi tạo bộ đếm thời gian chạy ngầm
+scheduler = BackgroundScheduler()
+scheduler.start()
+# Lưu trữ ID của lịch trình theo từng khách hàng
+user_jobs = {}
 
 # Lấy các biến môi trường
 PAGE_ACCESS_TOKEN = os.environ.get('PAGE_ACCESS_TOKEN')
@@ -59,6 +67,27 @@ Bạn tên là Uyên, một nhân viên trực page cực kỳ chuyên nghiệp,
 - **Khách hỏi thông tin không có trong dữ liệu hoặc câu hỏi quá phức tạp:** Tuyệt đối KHÔNG tự bịa ra thông tin sai sự thật. Phải khéo léo nhắn khách đợi nhân viên trực tiếp vào hỗ trợ. Ví dụ: "Dạ vấn đề này Uyên chưa nắm rõ chi tiết, anh/chị đợi em một chút để các bạn quản lý sân vào hỗ trợ trực tiếp cho mình nhé ạ!" hoặc chủ động xin SĐT để quản lý gọi điện tư vấn lại.
 """
 
+def send_followup_message(recipient_id):
+    """Gửi tin nhắn chăm sóc khách hàng sau 30 phút im lặng"""
+    text = "Dạ Thado Pickleball đang có khung giờ chơi ưu đãi chỉ từ 50.000đ/giờ. Anh/chị muốn em kiểm tra sân trống trong hôm nay hoặc cuối tuần này không ạ? Chỉ cần gửi giúp em ngày + giờ muốn chơi, bên em kiểm tra ngay cho mình."
+    send_text_message(recipient_id, text)
+    if recipient_id in user_jobs:
+        del user_jobs[recipient_id]
+
+def schedule_followup(sender_id):
+    """Cài đặt đồng hồ đếm ngược 30 phút"""
+    # Hủy lịch trình cũ nếu khách vừa nhắn tin lại
+    if sender_id in user_jobs:
+        try:
+            scheduler.remove_job(user_jobs[sender_id])
+        except Exception:
+            pass
+    
+    # Lên lịch trình mới sau 30 phút
+    run_date = datetime.now() + timedelta(minutes=30)
+    job = scheduler.add_job(send_followup_message, 'date', run_date=run_date, args=[sender_id])
+    user_jobs[sender_id] = job.id
+
 @app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
     if request.method == 'GET':
@@ -75,6 +104,9 @@ def webhook():
             for entry in data['entry']:
                 for messaging_event in entry['messaging']:
                     sender_id = messaging_event['sender']['id']
+
+                    # Đặt lại đồng hồ 30 phút bất cứ khi nào khách tương tác
+                    schedule_followup(sender_id)
 
                     # 1. Xử lý tin nhắn văn bản khách gõ
                     if messaging_event.get('message') and not messaging_event['message'].get('is_echo'):
@@ -93,12 +125,10 @@ def handle_gemini_response(recipient_id, text):
         return
 
     try:
-        # Chọn ngẫu nhiên 1 key trong danh sách để tránh bị giới hạn (Rate Limit)
         selected_key = random.choice(GEMINI_API_KEYS)
         genai.configure(api_key=selected_key)
         model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=SYSTEM_INSTRUCTION)
 
-        # Gọi Gemini xử lý tin nhắn của khách
         response = model.generate_content(text)
         reply_text = response.text
         send_text_message(recipient_id, reply_text)
