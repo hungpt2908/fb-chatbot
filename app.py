@@ -162,6 +162,13 @@ def handle_gemini_response(recipient_id, text):
             mark_done(recipient_id)
 
         send_text_message(recipient_id, reply_text)
+
+        # Tự động gửi ảnh QR khi bot nhắc đến chuyển khoản/cọc
+        coc_keywords = ['9596888899', 'techcombank', 'chuyển khoản', 'cọc trước', 'cọc nhẹ', 'ck qua']
+        if any(kw in reply_text.lower() for kw in coc_keywords):
+            qr_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://fb-chatbot-92d4.onrender.com') + '/static/qr_bank.jpg'
+            send_image_message(recipient_id, qr_url)
+
     except Exception as e:
         print(f"Lỗi khi gọi Gemini API với key {selected_key[:10]}...:", e)
         send_text_message(recipient_id, "Sorry mình, em bị lỗi mạng chút xíu 😅 Mình nhắn lại giúp em nha!")
@@ -180,5 +187,23 @@ def send_text_message(recipient_id, text):
     data = {"recipient": {"id": recipient_id}, "message": {"text": text}}
     requests.post("https://graph.facebook.com/v18.0/me/messages", params=params, json=data)
 
+def send_image_message(recipient_id, image_url):
+    """Gửi ảnh (QR code) qua Messenger"""
+    params = {'access_token': PAGE_ACCESS_TOKEN}
+    data = {
+        "recipient": {"id": recipient_id},
+        "message": {
+            "attachment": {
+                "type": "image",
+                "payload": {
+                    "url": image_url,
+                    "is_reusable": True
+                }
+            }
+        }
+    }
+    requests.post("https://graph.facebook.com/v18.0/me/messages", params=params, json=data)
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+

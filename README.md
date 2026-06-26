@@ -15,3 +15,6 @@ Tạo và triển khai một chatbot Facebook cơ bản sử dụng Flask.
 - [x] Cấu hình Facebook Developer (Webhook & Page Access Token).
 - [x] Tích hợp AI Gemini với System Instruction của Thado Pickleball (Nhân viên Uyên).
 - [x] Cài đặt Background Task (APScheduler) để tự động nhắn tin chăm sóc sau 30 phút im lặng.
+- [x] Nâng cấp thư viện `google-genai` + model `gemini-2.5-flash`.
+- [x] Tách `instruction.txt` ra file riêng để dễ dàng cập nhật kịch bản.
+- [x] Viết lại kịch bản AI giọng điệu tự nhiên như người thật + logic bám đuổi 3 phút x 3 lần.
