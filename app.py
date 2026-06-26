@@ -2,13 +2,16 @@ from flask import Flask, request
 import requests
 import os
 import google.generativeai as genai
+import random
 
 app = Flask(__name__)
 
 # Lấy các biến môi trường
 PAGE_ACCESS_TOKEN = os.environ.get('PAGE_ACCESS_TOKEN')
 VERIFY_TOKEN = os.environ.get('VERIFY_TOKEN')
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+# Hỗ trợ nhận nhiều key ngăn cách bởi dấu phẩy
+GEMINI_API_KEYS_STR = os.environ.get('GEMINI_API_KEY', '')
+GEMINI_API_KEYS = [k.strip() for k in GEMINI_API_KEYS_STR.split(',') if k.strip()]
 
 SYSTEM_INSTRUCTION = """
 Bạn tên là Uyên, một nhân viên trực page cực kỳ chuyên nghiệp, nhiệt tình và thân thiện của "Thado Pickleball". Nhiệm vụ của bạn là tư vấn khách hàng, báo giá, hỗ trợ đặt sân và giải đáp các thắc mắc về bộ môn Pickleball.
@@ -56,12 +59,6 @@ Bạn tên là Uyên, một nhân viên trực page cực kỳ chuyên nghiệp,
 - **Khách hỏi thông tin không có trong dữ liệu:** Khéo léo báo khách để lại SĐT để quản lý sân gọi điện tư vấn trực tiếp, tuyệt đối không tự bịa ra giá hoặc thông tin sai sự thật.
 """
 
-# Cấu hình Gemini
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    # Khởi tạo model AI với hướng dẫn hệ thống (System Instruction)
-    model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=SYSTEM_INSTRUCTION)
-
 @app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
     if request.method == 'GET':
@@ -82,7 +79,6 @@ def webhook():
                     # 1. Xử lý tin nhắn văn bản khách gõ
                     if messaging_event.get('message') and not messaging_event['message'].get('is_echo'):
                         text = messaging_event['message'].get('text', '')
-                        # Bỏ qua logic gửi nút bấm cố định, đẩy trực tiếp cho AI xử lý luôn
                         handle_gemini_response(sender_id, text)
 
                     # 2. Xử lý khi khách bấm nút (Postback) - nếu có
@@ -92,17 +88,22 @@ def webhook():
         return 'EVENT_RECEIVED', 200
 
 def handle_gemini_response(recipient_id, text):
-    if not GEMINI_API_KEY:
+    if not GEMINI_API_KEYS:
         send_text_message(recipient_id, "Dạ hệ thống AI bên em đang bảo trì. Anh/chị vui lòng liên hệ hotline 0989 567 709 nhé ạ!")
         return
 
     try:
+        # Chọn ngẫu nhiên 1 key trong danh sách để tránh bị giới hạn (Rate Limit)
+        selected_key = random.choice(GEMINI_API_KEYS)
+        genai.configure(api_key=selected_key)
+        model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=SYSTEM_INSTRUCTION)
+
         # Gọi Gemini xử lý tin nhắn của khách
         response = model.generate_content(text)
         reply_text = response.text
         send_text_message(recipient_id, reply_text)
     except Exception as e:
-        print("Lỗi khi gọi Gemini API:", e)
+        print(f"Lỗi khi gọi Gemini API với key {selected_key[:10]}...:", e)
         send_text_message(recipient_id, "Dạ Uyên đang bận chút xíu, anh/chị đợi em tí nhé ạ!")
 
 def handle_postback(recipient_id, payload):
