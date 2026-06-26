@@ -88,6 +88,10 @@ def schedule_followup(sender_id):
     job = scheduler.add_job(send_followup_message, 'date', run_date=run_date, args=[sender_id])
     user_jobs[sender_id] = job.id
 
+@app.route('/')
+def home():
+    return "Bot is awake and running!", 200
+
 @app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
     if request.method == 'GET':

@@ -14,3 +14,4 @@ Tạo và triển khai một chatbot Facebook cơ bản sử dụng Flask.
 - [x] Triển khai lên Render.com. (URL: https://fb-chatbot-92d4.onrender.com)
 - [x] Cấu hình Facebook Developer (Webhook & Page Access Token).
 - [x] Tích hợp AI Gemini với System Instruction của Thado Pickleball (Nhân viên Uyên).
+- [x] Cài đặt Background Task (APScheduler) để tự động nhắn tin chăm sóc sau 30 phút im lặng.
