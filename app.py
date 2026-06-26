@@ -127,17 +127,35 @@ def webhook():
         data = request.json
         if data['object'] == 'page':
             for entry in data['entry']:
+                # Lấy page_id để phân biệt tin nhắn từ khách vs từ page
+                page_id = entry.get('id', '')
                 for messaging_event in entry['messaging']:
                     sender_id = messaging_event['sender']['id']
+
+                    # Bỏ qua tin nhắn từ chính page (echo, auto-reply của Facebook)
+                    if sender_id == page_id:
+                        continue
+
+                    # Bỏ qua tin nhắn echo
+                    if messaging_event.get('message', {}).get('is_echo'):
+                        continue
+
+                    # Bỏ qua tin nhắn chỉ có attachment (ảnh, sticker) mà không có text
+                    message = messaging_event.get('message', {})
+                    has_text = bool(message.get('text', '').strip())
+                    has_only_attachment = message.get('attachments') and not has_text
+
+                    if has_only_attachment:
+                        continue
+
                     schedule_followup(sender_id)
 
-                    if messaging_event.get('message') and not messaging_event['message'].get('is_echo'):
-                        text = messaging_event['message'].get('text', '')
-                        if text:
-                            # Phát hiện khách đã chốt đơn (đã cung cấp SĐT)
-                            if any(keyword in text.lower() for keyword in ['ok em ghi nhận', 'cảm ơn', 'thank', 'ok xong', 'đã chuyển', 'đã cọc']):
-                                mark_done(sender_id)
-                            handle_gemini_response(sender_id, text)
+                    if has_text:
+                        text = message['text'].strip()
+                        # Phát hiện khách đã chốt đơn
+                        if any(keyword in text.lower() for keyword in ['ok em ghi nhận', 'cảm ơn', 'thank', 'ok xong', 'đã chuyển', 'đã cọc']):
+                            mark_done(sender_id)
+                        handle_gemini_response(sender_id, text)
 
                     if messaging_event.get('postback'):
                         payload = messaging_event['postback']['payload']
